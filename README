@@ -1,0 +1,10 @@
+You need these two branches compilied and installed:
+
+git://github.com/JonathanBeck/libiphone.git (the contact_sync)
+git://github.com/JonathanBeck/libplist.git 
+
+Then run make
+
+Then connect the iphone and run ./sync
+
+It should print out some xml representing the events on your iphone.
