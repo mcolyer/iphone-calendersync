@@ -24,30 +24,34 @@ def chunk( seq, size, pad=None ):
 
 
 class iPhoneCalendar():
-    calendar_id = ''
-    name = ''
-    read_only = False
+    def __init__(self):
+        self.calendar_id = ''
+        self.name = ''
+        self.read_only = False
 
 class iPhoneEvent():
-    event_id = ''
-    event_node = None
-    reminder_node = None
-    recurrence_node = None
+    def __init__(self):
+        self.reminder_nodes = []
+        self.event_id = ''
+        self.event_node = None
+        self.recurrence_node = None
 
     def __str__(self):
-        return "<iPhoneEvent %s %s %s> " % (self.event_node, self.reminder_node, self.recurrence_node)
+        return "<iPhoneEvent %s %s %s> " % (self.event_node, self.reminder_nodes, self.recurrence_node)
 
     def to_vcard(self):
-        date_format = ":%Y%m%dT%H%M%S"
         result = "BEGIN:VEVENT\n"
         result += "UID:%s@iphone\n" % self.event_id
+
         # Determine if it is an all day event
+        date_format = ":%Y%m%dT%H%M%S"
         for k,v in chunk(self.event_node, 2):
             if k.text == 'all day':
                 date_format = {'1' : ";VALUE=DATE:%Y%m%d", '0' : ":%Y%m%dT%H%M%S"}[v.text]
                 break
 
         # Handle all of the event information
+        description = ''
         for k,v in chunk(self.event_node, 2):
             if k.text == 'start date':
                 formatted = time.strftime(date_format, time.localtime(time.mktime(time.strptime(v.text, "%Y-%m-%dT%H:%M:%SZ"))+ODD_EPOCH))
@@ -56,11 +60,16 @@ class iPhoneEvent():
                 formatted = time.strftime(date_format, time.localtime(time.mktime(time.strptime(v.text, "%Y-%m-%dT%H:%M:%SZ"))+ODD_EPOCH))
                 result += "DTEND%s\n" % formatted
             elif k.text == 'summary':
+                description = v.text
                 result += "SUMMARY:%s\n" % v.text
-        
+            elif k.text == 'location':
+                result += "LOCATION:%s\n" % v.text
+            elif k.text == 'description':
+                result += "DESCRIPTION:%s\n" % v.text
+
+        # Handle all of the event information
         if self.recurrence_node is not None:
             rrule = ""
-            # Handle all of the event information
             for k,v in chunk(self.recurrence_node, 2):
                 if v.tag == 'array':
                     v = v.getchildren()[0]
@@ -74,6 +83,21 @@ class iPhoneEvent():
                     rrule += "BYMONTHDAY=%s;" % v.text
             result += "RRULE:%s\n" % rrule[0:-1]
         result += "END:VEVENT"
+        
+        # Handle the alarms
+        if self.reminder_nodes is not []:
+            for node in self.reminder_nodes:
+                result += "\nBEGIN:VALARM\n"
+                result += "ACTION:DISPLAY\n"
+                if description:
+                    result += "DESCRIPTION:%s\n" % description
+                for k,v in chunk(node, 2):
+                    if k.text == 'triggerduration':
+                        # Convert from the silly unsigned int represent a signed int
+                        time_before = int(v.text)
+                        minutes_before = ((2**64) - time_before) / 60
+                        result += "TRIGGER;VALUE=DURATION;RELATED=START:-P%sM\n" % minutes_before
+                result += "END:VALARM"
         return result
 
 class iPhoneCalendarSession():
@@ -174,7 +198,7 @@ class iPhoneCalendarSession():
             event_id = d.xpath("key[text()='owner']")[0].getnext().xpath('string/text()')[0]
             if event_id in self.events.keys():
                 event = self.events[event_id]
-                event.reminder_node = d
+                event.reminder_nodes.append(d)
 
     def _process_recurrences(self):
         # Get a list of recurrences
