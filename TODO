@@ -1,0 +1,10 @@
+If you are looking to work on something that needs done checkout these:
+
+- Write event support
+- Update event support
+- Delete event support
+- Audio/Display reminders (right now they are one and the same)
+- Exceptions to recurrence (Delete an instance of a sequence of events)
+- Timezones
+
+Patches happily accepted.
